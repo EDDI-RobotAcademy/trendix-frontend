@@ -19,9 +19,14 @@ interface Widget {
     name: string;
 }
 
-interface LayoutItem extends Layout {} // react-grid-layout의 Layout 타입을 확장
+// react-grid-layout의 Layout 타입을 그대로 사용해 빈 인터페이스 경고를 방지합니다.
+type LayoutItem = Layout;
 
-type Breakpoint = string;
+const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 } as const;
+const cols: Record<keyof typeof breakpoints, number> = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
+
+// 브레이크포인트 키를 타입으로 고정해 인덱싱 시 타입 오류를 막습니다.
+type Breakpoint = keyof typeof breakpoints;
 type Layouts = Record<Breakpoint, LayoutItem[]>;
 
 interface WidgetTypeOption {
@@ -39,17 +44,22 @@ const WIDGET_TYPES: WidgetTypeOption[] = [
     { type: 'hotKeywords', name: '지금 뜨는 키워드', defaultW: 6, defaultH: 2 },
 ];
 
-const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
-const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
-
 const getInitialWidgets = (): Widget[] => [
     { i: '1', type: 'trendingVideos', name: '급등 영상' },
     { i: '2', type: 'channelAnalysis', name: '내 채널 분석' },
 ];
 
+const createEmptyLayouts = (): Layouts => ({
+    lg: [],
+    md: [],
+    sm: [],
+    xs: [],
+    xxs: [],
+});
+
 const generateLayouts = (initialWidgets: Widget[]): Layouts => {
-    const layouts: Layouts = {};
-    for (const breakpoint of Object.keys(breakpoints)) {
+    const layouts: Layouts = createEmptyLayouts();
+    for (const breakpoint of Object.keys(breakpoints) as Breakpoint[]) {
         layouts[breakpoint] = initialWidgets.map((widget, index) => {
             const widgetType = WIDGET_TYPES.find(w => w.type === widget.type);
             const w = widgetType?.defaultW || 4;
@@ -70,7 +80,7 @@ const DashboardClient = () => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [widgets, setWidgets] = useState<Widget[]>([]);
-    const [layouts, setLayouts] = useState<Layouts>({});
+    const [layouts, setLayouts] = useState<Layouts>(() => createEmptyLayouts());
     const [detailVideo, setDetailVideo] = useState<Video | null>(null); // 비디오 상세 모달 상태
 
     useEffect(() => {
@@ -126,7 +136,7 @@ const DashboardClient = () => {
         setWidgets(updatedWidgets);
 
         const newLayouts: Layouts = { ...layouts };
-        for (const breakpoint of Object.keys(breakpoints)) {
+        for (const breakpoint of Object.keys(breakpoints) as Breakpoint[]) {
             const currentLayout = newLayouts[breakpoint] || [];
             const nextY = currentLayout.length ? Math.max(...currentLayout.map(item => item.y + item.h)) : 0;
             newLayouts[breakpoint] = [
@@ -141,7 +151,7 @@ const DashboardClient = () => {
     const handleRemoveItem = (itemId: string) => {
         setWidgets(widgets.filter(w => w.i !== itemId));
         const newLayouts: Layouts = { ...layouts };
-        for (const breakpoint of Object.keys(newLayouts)) {
+        for (const breakpoint of Object.keys(newLayouts) as Breakpoint[]) {
             newLayouts[breakpoint] = newLayouts[breakpoint].filter(l => l.i !== itemId);
         }
         setLayouts(newLayouts);
@@ -237,7 +247,7 @@ const DashboardClient = () => {
                  <div className="flex items-center justify-center h-96 border-2 border-dashed border-gray-300 rounded-lg">
                     <div className="text-center">
                         <p className="text-lg text-gray-500">대시보드가 비어있습니다.</p>
-                        {isEditMode ? <p className="text-sm text-gray-400">'위젯 추가' 버튼을 눌러 새 위젯을 만드세요.</p> : <p className="text-sm text-gray-400">'수정하기' 버튼을 눌러 대시보드 편집을 시작하세요.</p>}
+                        {isEditMode ? <p className="text-sm text-gray-400">&apos;위젯 추가&apos; 버튼을 눌러 새 위젯을 만드세요.</p> : <p className="text-sm text-gray-400">&apos;수정하기&apos; 버튼을 눌러 대시보드 편집을 시작하세요.</p>}
                     </div>
                 </div>
             )}
