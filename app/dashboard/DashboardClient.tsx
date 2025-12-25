@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Responsive, WidthProvider } from 'react-grid-layout';
+import { Responsive, WidthProvider, Layout } from 'react-grid-layout'; // Layout 타입 임포트
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import TrendingVideosWidget from '@/app/components/Dashboard/Widgets/TrendingVideosWidget';
@@ -12,8 +12,27 @@ import { Video } from '@/app/components/Home/TrendingVideos/VideoCard';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+// --- 타입 정의 ---
+interface Widget {
+    i: string;
+    type: string;
+    name: string;
+}
+
+interface LayoutItem extends Layout {} // react-grid-layout의 Layout 타입을 확장
+
+type Breakpoint = string;
+type Layouts = Record<Breakpoint, LayoutItem[]>;
+
+interface WidgetTypeOption {
+    type: string;
+    name: string;
+    defaultW: number;
+    defaultH: number;
+}
+
 // --- 위젯 타입 정의 ---
-const WIDGET_TYPES = [
+const WIDGET_TYPES: WidgetTypeOption[] = [
     { type: 'trendingVideos', name: '급등 영상', defaultW: 6, defaultH: 4 },
     { type: 'channelAnalysis', name: '내 채널 분석', defaultW: 6, defaultH: 4 },
     { type: 'videoCompare', name: '동영상 비교', defaultW: 6, defaultH: 4 },
@@ -23,14 +42,15 @@ const WIDGET_TYPES = [
 const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
 const cols = { lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 };
 
-const getInitialWidgets = () => [
-  //  { i: '1', type: 'trendingVideos', name: '급등 영상' },
+const getInitialWidgets = (): Widget[] => [
+    { i: '1', type: 'trendingVideos', name: '급등 영상' },
+    { i: '2', type: 'channelAnalysis', name: '내 채널 분석' },
 ];
 
-const generateLayouts = (widgets) => {
-    const layouts = {};
+const generateLayouts = (initialWidgets: Widget[]): Layouts => {
+    const layouts: Layouts = {};
     for (const breakpoint of Object.keys(breakpoints)) {
-        layouts[breakpoint] = widgets.map((widget, index) => {
+        layouts[breakpoint] = initialWidgets.map((widget, index) => {
             const widgetType = WIDGET_TYPES.find(w => w.type === widget.type);
             const w = widgetType?.defaultW || 4;
             return {
@@ -39,7 +59,7 @@ const generateLayouts = (widgets) => {
                 y: Infinity, // compactType: 'vertical'이 위치를 잡아줍니다.
                 w: w,
                 h: widgetType?.defaultH || 2,
-            }
+            } as LayoutItem;
         });
     }
     return layouts;
@@ -49,16 +69,16 @@ const generateLayouts = (widgets) => {
 const DashboardClient = () => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [widgets, setWidgets] = useState([]);
-    const [layouts, setLayouts] = useState({});
+    const [widgets, setWidgets] = useState<Widget[]>([]);
+    const [layouts, setLayouts] = useState<Layouts>({});
     const [detailVideo, setDetailVideo] = useState<Video | null>(null); // 비디오 상세 모달 상태
 
     useEffect(() => {
-        let savedWidgets = null;
-        let savedLayouts = null;
+        let savedWidgets: Widget[] | null = null;
+        let savedLayouts: Layouts | null = null;
         try {
-            savedWidgets = JSON.parse(localStorage.getItem('dashboard_widgets_v2'));
-            savedLayouts = JSON.parse(localStorage.getItem('dashboard_layouts_v2'));
+            savedWidgets = JSON.parse(localStorage.getItem('dashboard_widgets_v2') || 'null');
+            savedLayouts = JSON.parse(localStorage.getItem('dashboard_layouts_v2') || 'null');
         } catch (error) { console.error("대시보드 데이터를 불러오는 중 오류 발생:", error); }
 
         if (savedWidgets && savedLayouts && savedWidgets.length > 0) {
@@ -71,7 +91,9 @@ const DashboardClient = () => {
         }
     }, []);
 
-    const handleLayoutChange = (layout, allLayouts) => { if (isEditMode) setLayouts(allLayouts); };
+    const handleLayoutChange = (layout: LayoutItem[], allLayouts: Layouts) => { 
+        if (isEditMode) setLayouts(allLayouts); 
+    };
 
     const handleSave = () => {
         localStorage.setItem('dashboard_widgets_v2', JSON.stringify(widgets));
@@ -80,11 +102,11 @@ const DashboardClient = () => {
     };
     
     const handleCancel = () => {
-        let savedWidgets = null;
-        let savedLayouts = null;
+        let savedWidgets: Widget[] | null = null;
+        let savedLayouts: Layouts | null = null;
         try {
-            savedWidgets = JSON.parse(localStorage.getItem('dashboard_widgets_v2'));
-            savedLayouts = JSON.parse(localStorage.getItem('dashboard_layouts_v2'));
+            savedWidgets = JSON.parse(localStorage.getItem('dashboard_widgets_v2') || 'null');
+            savedLayouts = JSON.parse(localStorage.getItem('dashboard_layouts_v2') || 'null');
         } catch (error) { console.error("대시보드 데이터를 불러오는 중 오류 발생:", error); }
         if (savedWidgets && savedLayouts && savedWidgets.length > 0) {
             setWidgets(savedWidgets); 
@@ -97,27 +119,29 @@ const DashboardClient = () => {
         setIsEditMode(false);
     };
 
-    const handleAddItem = (widgetType) => {
+    const handleAddItem = (widgetType: WidgetTypeOption) => {
         const newItemId = String(Date.now());
-        const newWidget = { i: newItemId, type: widgetType.type, name: widgetType.name };
+        const newWidget: Widget = { i: newItemId, type: widgetType.type, name: widgetType.name };
         const updatedWidgets = [...widgets, newWidget];
         setWidgets(updatedWidgets);
 
-        const newLayouts = { ...layouts };
-        for (const breakpoint in newLayouts) {
+        const newLayouts: Layouts = { ...layouts };
+        for (const breakpoint of Object.keys(breakpoints)) {
+            const currentLayout = newLayouts[breakpoint] || [];
+            const nextY = currentLayout.length ? Math.max(...currentLayout.map(item => item.y + item.h)) : 0;
             newLayouts[breakpoint] = [
-                ...newLayouts[breakpoint],
-                { i: newItemId, x: 0, y: Infinity, w: widgetType.defaultW, h: widgetType.defaultH }
+                ...currentLayout,
+                { i: newItemId, x: 0, y: nextY, w: widgetType.defaultW, h: widgetType.defaultH } as LayoutItem
             ];
         }
         setLayouts(newLayouts);
         setIsAddModalOpen(false);
     };
 
-    const handleRemoveItem = (itemId) => {
+    const handleRemoveItem = (itemId: string) => {
         setWidgets(widgets.filter(w => w.i !== itemId));
-        const newLayouts = { ...layouts };
-        for (const breakpoint in newLayouts) {
+        const newLayouts: Layouts = { ...layouts };
+        for (const breakpoint of Object.keys(newLayouts)) {
             newLayouts[breakpoint] = newLayouts[breakpoint].filter(l => l.i !== itemId);
         }
         setLayouts(newLayouts);
@@ -131,7 +155,7 @@ const DashboardClient = () => {
         setDetailVideo(null);
     };
     
-    const renderWidgetContent = (widget) => {
+    const renderWidgetContent = (widget: Widget) => {
         switch (widget.type) {
             case 'trendingVideos':
                 return <TrendingVideosWidget onVideoClick={handleVideoClick} />;
