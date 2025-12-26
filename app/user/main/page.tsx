@@ -1,7 +1,5 @@
 import { categoryList } from "@/app/actions/categoryList";
 import UserMain from "@/app/components/User/Main";
-import { useAuth } from "@/contexts/AuthContext";
-import { Category } from "@/types/category";
 import { HotTrendType } from "@/types/hotTrend";
 
 export default async function UserMainPage() {
@@ -17,10 +15,10 @@ export default async function UserMainPage() {
         const data = await res.json();
 
 
-        const hotTrend = await Promise.all(data.items.filter((category: HotTrendType) => category.category !== "uncategorized").map((category: HotTrendType) => categoryList(category.category, 4)));
+        const hotTrend = await Promise.all(data.items.filter((category: HotTrendType) => category.category !== "uncategorized" && category.category !== "Food & Drink").map((category: HotTrendType) => categoryList(category.category, 4)));
 
         const flattenedList: Video[] = [];
-        const maxLength = Math.max(...hotTrend.map(trend => trend.items.length));
+        const maxLength = Math.max(...hotTrend.map(trend => trend.items?.length || 0));
         for (let i = 0; i < maxLength; i++) {
             for (const trend of hotTrend) {
                 if (trend.items[i]) {

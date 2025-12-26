@@ -110,7 +110,7 @@ export default function UserDetail() {
     };
 
     return (
-        <div className="max-w-4xl mx-auto p-6 space-y-8">
+        <div className="flex flex-col h-[calc(100vh-8rem)] bg-white dark:bg-gray-900 overflow-hidden space-y-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-8">내 정보 관리</h1>
 
             {/* --- Section 1: Basic Information --- */}

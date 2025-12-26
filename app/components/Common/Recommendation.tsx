@@ -110,7 +110,7 @@ export const Recommendation = ({ userCategory, userInterests }: { userCategory?:
                         )}
                     </div>
 
-                    {!isLoading && recommendationLimit < videos.length && (
+                    {!isLoading && recommendationLimit < videos?.length && (
                         <div className="flex justify-center">
                             <button
                                 onClick={loadMoreRecommendations}

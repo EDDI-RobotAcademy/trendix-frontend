@@ -76,6 +76,15 @@ const HeaderClient: React.FC<HeaderClientProps> = ({ headerData }) => {
                         {headerData.map((item, index) => (
                             <HeaderLink key={index} item={item} />
                         ))}
+                        {isLoggedIn && (
+                            <HeaderLink
+                                key={headerData.length}
+                                item={{
+                                    label: 'Trendix 채팅',
+                                    href: '/user/chat'
+                                }}
+                            />
+                        )}
                     </nav>
                     <div className='flex items-center gap-4'>
                         <HeaderAuth onSignInClick={() => setIsSignInOpen(true)} />
