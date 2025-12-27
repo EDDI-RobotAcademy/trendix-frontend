@@ -230,7 +230,13 @@ const DashboardClient = () => {
                 >
                     {widgets.map((widget) => (
                         <div key={widget.i} className={widgetStyle}>
-                            {renderWidgetContent(widget)}
+                            {/* 수정 모드에서는 위젯 내부 상호작용을 차단해 이동/크기조절만 동작하게 합니다. */}
+                            <div
+                                className={isEditMode ? 'pointer-events-none select-none w-full h-full' : 'w-full h-full'}
+                                aria-hidden={isEditMode}
+                            >
+                                {renderWidgetContent(widget)}
+                            </div>
                             {isEditMode && (
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleRemoveItem(widget.i); }}
