@@ -155,7 +155,7 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
         const fetchHistory = async () => {
             setLoading(true)
             try {
-                const response = await fetch(`http://localhost:8000/trends/videos/${video.id}/history?days=7`)
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/trends/videos/${video.id}/history?days=7`)
                 if (response.ok) {
                     const data: VideoHistoryResponse = await response.json()
                     setSnapshotHistory(data.items || [])
