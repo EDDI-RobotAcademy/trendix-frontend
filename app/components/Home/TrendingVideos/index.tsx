@@ -79,7 +79,7 @@ export default function TrendingVideos() {
                 if (selectedCategory === 'all') {
                     // 급등 영상 전체 Top 10 조회
                     const res = await fetch(
-                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/trends/videos/surge?platform=youtube&limit=10&days=7&velocity_days=1`,
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/trends/videos/surge?platform=youtube&limit=20&days=14&velocity_days=1`,
                         {
                             method: 'GET',
                             headers: {
@@ -91,7 +91,7 @@ export default function TrendingVideos() {
                     )
 
                     if (!res.ok) {
-                        throw new Error('급등 영상 데이터를 불러오지 못했습니다.')
+                        throw new Error('급등 영상 데이터를 불러오지 못했습니다!')
                     }
 
                     const data = await res.json()
@@ -130,9 +130,9 @@ export default function TrendingVideos() {
                     const mappedId = CATEGORY_ID_MAP[selectedCategory] ?? selectedCategory
 
                     const res = await fetch(
-                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/trends/categories/${encodeURIComponent(
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/trends/menu?category_id=${encodeURIComponent(
                             mappedId
-                        )}/recommendations?limit=20&days=14&platform=youtube`,
+                        )}&limit=20&days=14&platform=youtube`,
                         {
                             method: 'GET',
                             headers: {
@@ -167,7 +167,7 @@ export default function TrendingVideos() {
                         ),
                         isShort: item.is_shorts || false,
                         trendingRank: index + 1,
-                        trendingReason: item.growth_rate_percentage 
+                        trendingReason: item.growth_rate_percentage
                             ? `${item.category ?? mappedId} 카테고리 추천 (${item.growth_rate_percentage}% 증가)`
                             : `${item.category ?? mappedId} 카테고리 추천 영상`,
                     }))
