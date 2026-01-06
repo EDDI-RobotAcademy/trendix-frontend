@@ -69,9 +69,9 @@ function SimpleChart({
 }) {
     if (isLoading) {
         return (
-            <div className='bg-gray-50 rounded-lg p-3'>
+            <div className='bg-gray-50 rounded-lg p-3 border border-gray-200'>
                 <h4 className='font-medium text-gray-700 mb-3 text-sm'>{label} 추이</h4>
-                <div className='flex items-center justify-center h-40'>
+                <div className='flex items-center justify-center h-48'>
                     <Icon icon='mdi:loading' className='text-2xl text-gray-400 animate-spin' />
                 </div>
             </div>
@@ -80,87 +80,157 @@ function SimpleChart({
 
     if (data.length === 0) {
         return (
-            <div className='bg-gray-50 rounded-lg p-3'>
+            <div className='bg-gray-50 rounded-lg p-3 border border-gray-200'>
                 <h4 className='font-medium text-gray-700 mb-3 text-sm'>{label} 추이</h4>
-                <div className='flex items-center justify-center h-40 text-gray-400 text-sm'>
+                <div className='flex items-center justify-center h-48 text-gray-400 text-sm'>
                     데이터 없음
                 </div>
             </div>
         )
     }
 
-    // Y축 최대값을 데이터 최댓값 + 5%로 설정 (여유 공간 확보)
-    const actualMax = Math.max(...data.map(d => d.count), 1)
-    const actualMin = Math.min(...data.map(d => d.count), 0)
-    const maxCount = actualMax + (actualMax * 0.05) // 최댓값 + 5%
-    const minCount = actualMin
+    // Y축을 "최소값 대비 차이값(Δ)" 스케일로 설정
+    const realMin = Math.min(...data.map(d => d.count))
+    const realMax = Math.max(...data.map(d => d.count))
+    const range = Math.max(realMax - realMin, 0)
+
+    // 모든 데이터가 같은 값인지 확인
+    const allSameValue = range === 0
+
+    // 각 데이터를 Δ(차이값)로 변환
+    const dataWithDelta = data.map(item => ({
+        ...item,
+        delta: item.count - realMin,
+    }))
+
+    // 차트 데이터는 "과거 -> 최신" 순서로 들어온다고 가정
+    // 변화량은 (최신 - 과거) 기준으로 계산
+    const oldestCount = data[0]?.count ?? 0
+    const newestCount = data[data.length - 1]?.count ?? 0
+    const deltaCount = newestCount - oldestCount
+
+    // X축: 최대 10개까지는 화면에 모두 표시, 10개 초과만 가로 스크롤
+    const isScrollable = dataWithDelta.length > 10
+    const barWidthPx = 28
 
     return (
-        <div className='bg-gray-50 rounded-lg p-3'>
-            <h4 className='font-medium text-gray-700 mb-3 text-sm'>{label} 추이</h4>
+        <div className='bg-gray-50 rounded-lg p-3 border border-gray-200'>
+            <h4 className='font-medium text-gray-700 mb-3 text-sm pb-2 border-b border-gray-200'>
+                {label} 추이
+            </h4>
             
             {/* 막대 그래프 영역 */}
-            <div className='flex items-end justify-center gap-1 h-40 mb-1 px-2'>
-                {data.map((item, i) => {
-                    // 각 막대의 높이를 MAX+5% 값 기준으로 계산
-                    const heightPercent = ((item.count - minCount) / (maxCount - minCount)) * 100
-                    
-                    return (
-                        <div 
-                            key={i} 
-                            className='flex flex-col items-center group relative'
-                            style={{ width: `${Math.max(100 / data.length, 2)}%` }}
-                        >
-                            <div
-                                className={`w-full rounded-t-md transition-all duration-200 ${color} hover:brightness-110 cursor-pointer shadow-sm`}
-                                style={{ 
-                                    height: `${heightPercent}%`, 
-                                    minHeight: '4px',
-                                    minWidth: '8px'
-                                }}
-                            >
-                                {/* 툴팁 */}
-                                <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none'>
-                                    <div className='bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg'>
-                                        {item.time}<br />
-                                        <span className='font-semibold'>{formatNumber(item.count)}</span>
+            {isScrollable ? (
+                <div className='h-48 mb-1 px-2 overflow-x-auto'>
+                    <div className='h-full flex items-end gap-1'>
+                        {dataWithDelta.map((item, i) => {
+                            // Δ 스케일 기준으로 막대 높이 계산
+                            const heightPercent = range > 0 ? (item.delta / range) * 100 : 100
+
+                            return (
+                                <div
+                                    key={i}
+                                    className='h-full flex flex-col justify-end items-center group relative shrink-0'
+                                    style={{ width: barWidthPx }}
+                                >
+                                    <div
+                                        className={`w-full rounded-t-md transition-all duration-200 ${color} hover:brightness-110 cursor-pointer shadow-sm`}
+                                        style={{
+                                            height: `${heightPercent}%`,
+                                            minHeight: '4px',
+                                            minWidth: '8px',
+                                        }}
+                                    >
+                                        {/* 툴팁 */}
+                                        <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none'>
+                                            <div className='bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg'>
+                                                {item.time}
+                                                <br />
+                                                <span className='font-semibold'>+{formatNumber(item.delta)}</span>
+                                                <span className='text-gray-300 text-[10px]'> (총 {formatNumber(item.count)})</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            ) : (
+                <div className='h-48 mb-1 px-2'>
+                    <div className='h-full flex items-end gap-1'>
+                        {dataWithDelta.map((item, i) => {
+                            const heightPercent = range > 0 ? (item.delta / range) * 100 : 100
+
+                            return (
+                                <div
+                                    key={i}
+                                    className='h-full flex-1 flex flex-col justify-end items-center group relative'
+                                    style={{ minWidth: 28 }}
+                                >
+                                    <div
+                                        className={`w-full rounded-t-md transition-all duration-200 ${color} hover:brightness-110 cursor-pointer shadow-sm`}
+                                        style={{
+                                            height: `${heightPercent}%`,
+                                            minHeight: '4px',
+                                        }}
+                                    >
+                                        {/* 툴팁 */}
+                                        <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none'>
+                                            <div className='bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg'>
+                                                {item.time}
+                                                <br />
+                                                <span className='font-semibold'>+{formatNumber(item.delta)}</span>
+                                                <span className='text-gray-300 text-[10px]'> (총 {formatNumber(item.count)})</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
             
-            {/* X축 날짜 라벨 */}
-            <div className='flex justify-between text-[9px] text-gray-400 mb-2 overflow-hidden'>
-                {data.map((item, i) => {
-                    // 날짜가 많으면 간격을 두고 표시
-                    const showLabel = data.length <= 10 || i % Math.ceil(data.length / 10) === 0 || i === data.length - 1
-                    
-                    return (
-                        <div 
-                            key={i} 
-                            className='flex-1 text-center'
-                            style={{ 
-                                visibility: showLabel ? 'visible' : 'hidden' 
-                            }}
-                        >
-                            {item.time}
-                        </div>
-                    )
-                })}
-            </div>
+            {/* X축 날짜 라벨: 리스트 개수만큼 전부 표시 (최대 10개는 화면에 모두 표시) */}
+            {isScrollable ? (
+                <div className='px-2 overflow-x-auto mb-2'>
+                    <div className='flex gap-1 text-[9px] text-gray-400'>
+                        {dataWithDelta.map((item, i) => (
+                            <div key={i} className='text-center shrink-0' style={{ width: barWidthPx }}>
+                                {item.time}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div className='px-2 mb-2'>
+                    <div className='flex gap-1 text-[9px] text-gray-400'>
+                        {dataWithDelta.map((item, i) => (
+                            <div key={i} className='text-center flex-1' style={{ minWidth: 28 }}>
+                                {item.time}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             
             {/* 통계 정보 */}
-            <div className='flex justify-between text-xs text-gray-500 pt-2 border-t border-gray-200'>
-                <span>MIN: {formatNumber(actualMin)}</span>
-                <span className='font-medium text-gray-700'>
-                    MAX: {formatNumber(actualMax)}
-                </span>
-                <span className='text-green-600 font-medium'>
-                    +{formatNumber(data[data.length - 1].count - data[0].count)}
-                </span>
+            <div className='flex justify-between text-xs text-gray-500 pt-2'>
+                <span>MIN: 0</span>
+                <span className='font-medium text-gray-700'>MAX: {formatNumber(range)}</span>
+                {allSameValue ? (
+                    <span className='text-gray-600 font-medium'>
+                        변동 없음
+                    </span>
+                ) : (
+                    <span className='text-green-600 font-medium'>
+                        {formatChange(deltaCount)}
+                    </span>
+                )}
+            </div>
+            <div className='mt-1 text-[11px] text-gray-400'>
+                기준값(최소): {formatNumber(realMin)}
             </div>
         </div>
     )
@@ -345,25 +415,29 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
                     {/* Charts */}
                     <div className='grid grid-cols-2 gap-4 mb-4'>
                         <SimpleChart 
-                            data={viewHistory.map(item => ({
-                                time: new Date(item.snapshot_date).toLocaleDateString('ko-KR', { 
-                                    month: 'short', 
-                                    day: 'numeric'
-                                }),
-                                count: item.view_count
-                            }))}
+                            // 리스트 개수만큼 전부 표시, 과거 -> 최신(최신이 맨 뒤)
+                            data={viewHistory
+                                .map(item => ({
+                                    time: new Date(item.snapshot_date).toLocaleDateString('ko-KR', { 
+                                        month: 'short', 
+                                        day: 'numeric'
+                                    }),
+                                    count: item.view_count
+                                }))}
                             label='조회수' 
                             color='bg-blue-500'
                             isLoading={isLoadingHistory}
                         />
                         <SimpleChart
-                            data={viewHistory.map(item => ({
-                                time: new Date(item.snapshot_date).toLocaleDateString('ko-KR', { 
-                                    month: 'short', 
-                                    day: 'numeric'
-                                }),
-                                count: item.like_count
-                            }))}
+                            // 리스트 개수만큼 전부 표시, 과거 -> 최신(최신이 맨 뒤)
+                            data={viewHistory
+                                .map(item => ({
+                                    time: new Date(item.snapshot_date).toLocaleDateString('ko-KR', { 
+                                        month: 'short', 
+                                        day: 'numeric'
+                                    }),
+                                    count: item.like_count
+                                }))}
                             label='좋아요'
                             color='bg-pink-500'
                             isLoading={isLoadingHistory}
