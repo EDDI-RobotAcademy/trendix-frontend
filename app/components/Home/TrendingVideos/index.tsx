@@ -40,6 +40,11 @@ interface SurgeVideoItem {
     surge_score?: number
     trending_rank?: number
     is_shorts?: boolean
+    // 성장 지표 필드
+    view_count_change?: number
+    like_count_change?: number
+    comment_count_change?: number
+    growth_rate_percentage?: number
 }
 
 export default function TrendingVideos() {
@@ -98,13 +103,13 @@ export default function TrendingVideos() {
                     const mapped: Video[] = sorted.slice(0, 10).map((item, index) => ({
                         id: item.video_id,
                         title: item.title,
-                        channelName: item.channel_username?.replace('@', '') ?? '',
+                        channelName: item.channel_username || '',
                         channelId: item.channel_id,
                         thumbnailUrl: item.thumbnail_url,
                         viewCount: item.view_count,
-                        viewCountChange: 0,
+                        viewCountChange: item.view_count_change || 0,
                         likeCount: item.like_count ?? 0,
-                        likeCountChange: 0,
+                        likeCountChange: item.like_count_change || 0,
                         publishedAt: item.published_at,
                         duration: '', // 백엔드에서 제공 시 매핑
                         // category_id가 있으면 우선 사용, 없으면 category 문자열 또는 uncategorized
@@ -115,7 +120,7 @@ export default function TrendingVideos() {
                         trendingRank: item.trending_rank || (index + 1),
                         trendingReason:
                             item.surge_score != null
-                                ? `급등 점수 ${item.surge_score.toFixed(1)} - 조회수 ${(item.view_count || 0).toLocaleString()}`
+                                ? `급등 점수 ${item.surge_score.toFixed(1)}${item.growth_rate_percentage ? ` (${item.growth_rate_percentage}% 증가)` : ''} - 조회수 ${(item.view_count || 0).toLocaleString()}`
                                 : `조회수 ${(item.view_count || 0).toLocaleString()} - 최근 급등`,
                     }))
 
@@ -148,13 +153,13 @@ export default function TrendingVideos() {
                     const mapped: Video[] = items.slice(0, 20).map((item, index) => ({
                         id: item.video_id,
                         title: item.title,
-                        channelName: item.channel_username?.replace('@', '') ?? '',
+                        channelName: item.channel_username || '',
                         channelId: item.channel_id,
                         thumbnailUrl: item.thumbnail_url,
                         viewCount: item.view_count,
-                        viewCountChange: 0,
+                        viewCountChange: item.view_count_change || 0,
                         likeCount: item.like_count ?? 0,
-                        likeCountChange: 0,
+                        likeCountChange: item.like_count_change || 0,
                         publishedAt: item.published_at,
                         duration: '', // 백엔드에서 제공 시 매핑
                         categoryId: String(
@@ -162,7 +167,9 @@ export default function TrendingVideos() {
                         ),
                         isShort: item.is_shorts || false,
                         trendingRank: index + 1,
-                        trendingReason: `${item.category ?? mappedId} 카테고리 추천 영상`,
+                        trendingReason: item.growth_rate_percentage
+                            ? `${item.category ?? mappedId} 카테고리 추천 (${item.growth_rate_percentage}% 증가)`
+                            : `${item.category ?? mappedId} 카테고리 추천 영상`,
                     }))
 
                     setCategoryVideos((prev) => ({

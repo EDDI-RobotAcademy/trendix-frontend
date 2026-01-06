@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Icon } from '@iconify/react/dist/iconify.js'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 interface Video {
     id: string
@@ -49,48 +50,194 @@ function timeAgo(dateString: string): string {
     return `${Math.floor(seconds / 604800)}주 전`
 }
 
-// 더미 시계열 데이터
-const dummyViewHistory = [
-    { time: '8시간 전', count: 50000 },
-    { time: '7시간 전', count: 120000 },
-    { time: '6시간 전', count: 280000 },
-    { time: '5시간 전', count: 450000 },
-    { time: '4시간 전', count: 680000 },
-    { time: '3시간 전', count: 890000 },
-    { time: '2시간 전', count: 1050000 },
-    { time: '1시간 전', count: 1180000 },
-    { time: '현재', count: 1250000 },
-]
+// 스냅샷 히스토리 데이터 타입
+interface SnapshotData {
+    snapshot_date: string
+    view_count: number
+    like_count: number
+    comment_count: number
+    daily_view_increase: number
+    daily_like_increase: number
+    daily_comment_increase: number
+}
 
-function SimpleChart({ data, label, color }: { data: { time: string; count: number }[], label: string, color: string }) {
-    const maxCount = Math.max(...data.map(d => d.count))
+// API 응답 타입
+interface VideoHistoryResponse {
+    video_id: string
+    items: SnapshotData[]
+}
 
-    return (
-        <div className='bg-gray-50 rounded-lg p-3'>
-            <h4 className='font-medium text-gray-700 mb-3 text-sm'>{label} 추이</h4>
-            <div className='flex items-end gap-1 h-20'>
-                {data.map((item, i) => (
-                    <div key={i} className='flex-1 flex flex-col items-center'>
-                        <div
-                            className={`w-full rounded-t ${color}`}
-                            style={{ height: `${(item.count / maxCount) * 100}%`, minHeight: '2px' }}
-                            title={`${formatNumber(item.count)}`}
-                        />
-                    </div>
+// 차트용 데이터 변환 - 조회수와 좋아요를 하나의 객체로 결합
+function formatSnapshotForChart(snapshots: SnapshotData[]) {
+    return snapshots.map(snapshot => ({
+        date: new Date(snapshot.snapshot_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+        조회수: snapshot.view_count || 0,
+        좋아요: snapshot.like_count || 0,
+        댓글: snapshot.comment_count || 0
+    }))
+}
+
+// 커스텀 툴팁 컴포넌트
+function CustomTooltip({ active, payload, label }: any) {
+    if (active && payload && payload.length) {
+        return (
+            <div className='bg-gray-800 text-white p-3 rounded-lg shadow-lg'>
+                <p className='font-semibold mb-2'>{label}</p>
+                {payload.map((entry: any, index: number) => (
+                    <p key={index} style={{ color: entry.color }} className='text-sm'>
+                        {entry.name}: {formatNumber(entry.value)}
+                    </p>
                 ))}
             </div>
-            <div className='flex justify-between mt-2 text-xs text-gray-500'>
-                <span>{formatNumber(data[0].count)}</span>
-                <span className='text-green-600 font-medium'>
-                    +{formatNumber(data[data.length - 1].count - data[0].count)}
-                </span>
-                <span>{formatNumber(data[data.length - 1].count)}</span>
+        )
+    }
+    return null
+}
+
+function TrendLineChart({ data }: { data: any[] }) {
+    if (!data.length) return null
+
+    return (
+        <div className='bg-gray-50 rounded-lg p-4'>
+            <h4 className='font-medium text-gray-700 mb-3 text-sm'>7일간 추이</h4>
+            <ResponsiveContainer width='100%' height={300}>
+                <LineChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray='3 3' stroke='#e0e0e0' />
+                    <XAxis
+                        dataKey='date'
+                        tick={{ fontSize: 12 }}
+                        stroke='#666'
+                    />
+                    <YAxis
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(value) => formatNumber(value)}
+                        stroke='#666'
+                        yAxisId='left'
+                    />
+                    <YAxis
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(value) => formatNumber(value)}
+                        stroke='#666'
+                        orientation='right'
+                        yAxisId='right'
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend
+                        wrapperStyle={{ fontSize: '14px' }}
+                        iconType='line'
+                    />
+                    <Line
+                        type='monotone'
+                        dataKey='조회수'
+                        stroke='#3b82f6'
+                        strokeWidth={3}
+                        dot={{ fill: '#3b82f6', r: 4 }}
+                        activeDot={{ r: 6 }}
+                        yAxisId='left'
+                    />
+                    <Line
+                        type='monotone'
+                        dataKey='좋아요'
+                        stroke='#ec4899'
+                        strokeWidth={3}
+                        dot={{ fill: '#ec4899', r: 4 }}
+                        activeDot={{ r: 6 }}
+                        yAxisId='right'
+                    />
+                </LineChart>
+            </ResponsiveContainer>
+
+            {/* 통계 정보 */}
+            <div className='grid grid-cols-2 gap-4 mt-4'>
+                <div className='bg-blue-50 rounded-lg p-3'>
+                    <div className='flex items-center gap-2 mb-2'>
+                        <div className='w-3 h-3 rounded-full bg-blue-500'></div>
+                        <span className='text-sm font-medium text-gray-700'>조회수</span>
+                    </div>
+                    <div className='text-xs text-gray-600 space-y-1'>
+                        <div className='flex justify-between'>
+                            <span>시작:</span>
+                            <span className='font-medium'>{formatNumber(data[0]?.조회수 || 0)}</span>
+                        </div>
+                        <div className='flex justify-between'>
+                            <span>현재:</span>
+                            <span className='font-medium'>{formatNumber(data[data.length - 1]?.조회수 || 0)}</span>
+                        </div>
+                        <div className='flex justify-between'>
+                            <span>증가:</span>
+                            <span className={`font-bold ${
+                                (data[data.length - 1]?.조회수 || 0) > (data[0]?.조회수 || 0) ? 'text-green-600' : 'text-gray-500'
+                            }`}>
+                                +{formatNumber((data[data.length - 1]?.조회수 || 0) - (data[0]?.조회수 || 0))}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div className='bg-pink-50 rounded-lg p-3'>
+                    <div className='flex items-center gap-2 mb-2'>
+                        <div className='w-3 h-3 rounded-full bg-pink-500'></div>
+                        <span className='text-sm font-medium text-gray-700'>좋아요</span>
+                    </div>
+                    <div className='text-xs text-gray-600 space-y-1'>
+                        <div className='flex justify-between'>
+                            <span>시작:</span>
+                            <span className='font-medium'>{formatNumber(data[0]?.좋아요 || 0)}</span>
+                        </div>
+                        <div className='flex justify-between'>
+                            <span>현재:</span>
+                            <span className='font-medium'>{formatNumber(data[data.length - 1]?.좋아요 || 0)}</span>
+                        </div>
+                        <div className='flex justify-between'>
+                            <span>증가:</span>
+                            <span className={`font-bold ${
+                                (data[data.length - 1]?.좋아요 || 0) > (data[0]?.좋아요 || 0) ? 'text-green-600' : 'text-gray-500'
+                            }`}>
+                                +{formatNumber((data[data.length - 1]?.좋아요 || 0) - (data[0]?.좋아요 || 0))}
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     )
 }
 
 export default function VideoDetailModal({ video, onClose }: VideoDetailModalProps) {
+    const [snapshotHistory, setSnapshotHistory] = useState<SnapshotData[]>([])
+    const [loading, setLoading] = useState<boolean>(false)
+
+    // 스냅샷 히스토리 데이터 가져오기
+    useEffect(() => {
+        if (!video?.id) {
+            setSnapshotHistory([])
+            return
+        }
+
+        // 영상이 바뀔 때마다 이전 데이터 초기화
+        setSnapshotHistory([])
+        setLoading(true)
+
+        const fetchHistory = async () => {
+            try {
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/trends/videos/${video.id}/history?days=7`)
+                if (response.ok) {
+                    const data: VideoHistoryResponse = await response.json()
+                    setSnapshotHistory(data.items || [])
+                } else {
+                    console.error('Failed to fetch video history:', response.status)
+                    setSnapshotHistory([])
+                }
+            } catch (error) {
+                console.error('Failed to fetch video history:', error)
+                setSnapshotHistory([])
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchHistory()
+    }, [video?.id])
+
     // ESC 키로 닫기
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -191,13 +338,18 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
                     )}
 
                     {/* Charts */}
-                    <div className='grid grid-cols-2 gap-4 mb-4'>
-                        <SimpleChart data={dummyViewHistory} label='조회수' color='bg-blue-500' />
-                        <SimpleChart
-                            data={dummyViewHistory.map(d => ({ ...d, count: Math.floor(d.count * 0.068) }))}
-                            label='좋아요'
-                            color='bg-pink-500'
-                        />
+                    <div className='mb-4'>
+                        {loading ? (
+                            <div className='flex justify-center items-center h-20 text-gray-500'>
+                                차트 데이터를 불러오는 중...
+                            </div>
+                        ) : snapshotHistory.length > 0 ? (
+                            <TrendLineChart data={formatSnapshotForChart(snapshotHistory)} />
+                        ) : (
+                            <div className='flex justify-center items-center h-20 text-gray-500'>
+                                차트 데이터가 없습니다
+                            </div>
+                        )}
                     </div>
 
                     {/* Actions */}
