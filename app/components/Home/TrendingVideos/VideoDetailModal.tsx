@@ -1,6 +1,7 @@
+/* eslint-disable react/no-array-index-key */
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { Icon } from '@iconify/react/dist/iconify.js'
 
@@ -27,10 +28,17 @@ interface VideoDetailModalProps {
     onClose: () => void
 }
 
+interface ViewHistoryItem {
+    snapshot_date: string // YYYY-MM-DD
+    view_count: number
+    like_count: number
+    comment_count: number
+}
+
 function formatNumber(num: number): string {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
-    return num.toString()
+    if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M'
+    if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K'
+    return String(num)
 }
 
 function formatChange(num: number): string {
@@ -49,49 +57,243 @@ function timeAgo(dateString: string): string {
     return `${Math.floor(seconds / 604800)}주 전`
 }
 
-// 더미 시계열 데이터
-const dummyViewHistory = [
-    { time: '8시간 전', count: 50000 },
-    { time: '7시간 전', count: 120000 },
-    { time: '6시간 전', count: 280000 },
-    { time: '5시간 전', count: 450000 },
-    { time: '4시간 전', count: 680000 },
-    { time: '3시간 전', count: 890000 },
-    { time: '2시간 전', count: 1050000 },
-    { time: '1시간 전', count: 1180000 },
-    { time: '현재', count: 1250000 },
-]
+type ChartPoint = { time: string; count: number }
 
-function SimpleChart({ data, label, color }: { data: { time: string; count: number }[], label: string, color: string }) {
-    const maxCount = Math.max(...data.map(d => d.count))
+function DeltaBarChart({
+    data,
+    label,
+    colorClass,
+    isLoading,
+}: {
+    data: ChartPoint[]
+    label: string
+    colorClass: string
+    isLoading?: boolean
+}) {
+    if (isLoading) {
+        return (
+            <div className='bg-gray-50 rounded-lg p-3 border border-gray-200'>
+                <h4 className='font-medium text-gray-700 mb-3 text-sm pb-2 border-b border-gray-200'>
+                    {label} 추이
+                </h4>
+                <div className='flex items-center justify-center h-48'>
+                    <Icon icon='mdi:loading' className='text-2xl text-gray-400 animate-spin' />
+                </div>
+            </div>
+        )
+    }
+
+    if (!data.length) {
+        return (
+            <div className='bg-gray-50 rounded-lg p-3 border border-gray-200'>
+                <h4 className='font-medium text-gray-700 mb-3 text-sm pb-2 border-b border-gray-200'>
+                    {label} 추이
+                </h4>
+                <div className='flex items-center justify-center h-48 text-gray-400 text-sm'>
+                    데이터 없음
+                </div>
+            </div>
+        )
+    }
+
+    // Y축: 최소값 기준 차이(Δ) 스케일
+    const realMin = Math.min(...data.map((d) => d.count))
+    const realMax = Math.max(...data.map((d) => d.count))
+    const range = Math.max(realMax - realMin, 0)
+    const allSameValue = range === 0
+
+    const oldestCount = data[0]?.count ?? 0
+    const newestCount = data[data.length - 1]?.count ?? 0
+    const deltaCount = newestCount - oldestCount
+
+    const dataWithDelta = data.map((item) => ({
+        ...item,
+        delta: item.count - realMin,
+    }))
+
+    // X축: 10개 이하 => 화면에 모두, 10개 초과 => 가로 스크롤로 모두
+    const isScrollable = dataWithDelta.length > 10
+    const barWidthPx = 28
 
     return (
-        <div className='bg-gray-50 rounded-lg p-3'>
-            <h4 className='font-medium text-gray-700 mb-3 text-sm'>{label} 추이</h4>
-            <div className='flex items-end gap-1 h-20'>
-                {data.map((item, i) => (
-                    <div key={i} className='flex-1 flex flex-col items-center'>
-                        <div
-                            className={`w-full rounded-t ${color}`}
-                            style={{ height: `${(item.count / maxCount) * 100}%`, minHeight: '2px' }}
-                            title={`${formatNumber(item.count)}`}
-                        />
+        <div className='bg-gray-50 rounded-lg p-3 border border-gray-200'>
+            <h4 className='font-medium text-gray-700 mb-3 text-sm pb-2 border-b border-gray-200'>
+                {label} 추이
+            </h4>
+
+            {/* Bars */}
+            {isScrollable ? (
+                <div className='h-48 mb-1 px-2 overflow-x-auto'>
+                    <div className='h-full flex items-end gap-1'>
+                        {dataWithDelta.map((item, i) => {
+                            // Δ(차이값)이 0이면 막대는 0 높이로 표시
+                            // range=0(모두 동일)인 경우도 Δ는 전부 0이므로 0으로 처리
+                            const heightPercent = item.delta === 0 ? 0 : range > 0 ? (item.delta / range) * 100 : 0
+
+                            return (
+                                <div
+                                    key={i}
+                                    className='h-full flex flex-col justify-end items-center group relative shrink-0'
+                                    style={{ width: barWidthPx }}
+                                >
+                                    <div
+                                        className={`w-full rounded-t-md transition-all duration-200 ${colorClass} hover:brightness-110 cursor-pointer shadow-sm`}
+                                        style={{
+                                            height: `${heightPercent}%`,
+                                            minHeight: item.delta === 0 ? '0px' : '4px',
+                                            minWidth: '8px',
+                                        }}
+                                    >
+                                        <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none'>
+                                            <div className='bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg'>
+                                                {item.time}
+                                                <br />
+                                                <span className='font-semibold'>+{formatNumber(item.delta)}</span>
+                                                <span className='text-gray-300 text-[10px]'> (총 {formatNumber(item.count)})</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
-                ))}
+                </div>
+            ) : (
+                <div className='h-48 mb-1 px-2'>
+                    <div className='h-full flex items-end gap-1'>
+                        {dataWithDelta.map((item, i) => {
+                            const heightPercent = item.delta === 0 ? 0 : range > 0 ? (item.delta / range) * 100 : 0
+
+                            return (
+                                <div
+                                    key={i}
+                                    className='h-full flex-1 flex flex-col justify-end items-center group relative'
+                                    style={{ minWidth: 28 }}
+                                >
+                                    <div
+                                        className={`w-full rounded-t-md transition-all duration-200 ${colorClass} hover:brightness-110 cursor-pointer shadow-sm`}
+                                        style={{
+                                            height: `${heightPercent}%`,
+                                            minHeight: item.delta === 0 ? '0px' : '4px',
+                                        }}
+                                    >
+                                        <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none'>
+                                            <div className='bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg'>
+                                                {item.time}
+                                                <br />
+                                                <span className='font-semibold'>+{formatNumber(item.delta)}</span>
+                                                <span className='text-gray-300 text-[10px]'> (총 {formatNumber(item.count)})</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* X labels: show all, newest at the end (data already in old->new order) */}
+            {isScrollable ? (
+                <div className='px-2 overflow-x-auto mb-2'>
+                    <div className='flex gap-1 text-[9px] text-gray-400'>
+                        {dataWithDelta.map((item, i) => (
+                            <div key={i} className='text-center shrink-0' style={{ width: barWidthPx }}>
+                                {item.time}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div className='px-2 mb-2'>
+                    <div className='flex gap-1 text-[9px] text-gray-400'>
+                        {dataWithDelta.map((item, i) => (
+                            <div key={i} className='text-center flex-1' style={{ minWidth: 28 }}>
+                                {item.time}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Stats */}
+            <div className='flex justify-between text-xs text-gray-500 pt-2'>
+                <span>MIN: 0</span>
+                <span className='font-medium text-gray-700'>MAX: {formatNumber(range)}</span>
+                {allSameValue ? (
+                    <span className='text-gray-600 font-medium'>변동 없음</span>
+                ) : (
+                    <span className='text-green-600 font-medium'>{formatChange(deltaCount)}</span>
+                )}
             </div>
-            <div className='flex justify-between mt-2 text-xs text-gray-500'>
-                <span>{formatNumber(data[0].count)}</span>
-                <span className='text-green-600 font-medium'>
-                    +{formatNumber(data[data.length - 1].count - data[0].count)}
-                </span>
-                <span>{formatNumber(data[data.length - 1].count)}</span>
-            </div>
+            <div className='mt-1 text-[11px] text-gray-400'>기준값(최소): {formatNumber(realMin)}</div>
         </div>
     )
 }
 
 export default function VideoDetailModal({ video, onClose }: VideoDetailModalProps) {
-    // ESC 키로 닫기
+    const [history, setHistory] = useState<ViewHistoryItem[]>([])
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+
+    // Fetch view history when video changes
+    useEffect(() => {
+        if (!video) return
+
+        const controller = new AbortController()
+
+        const fetchViewHistory = async () => {
+            setIsLoadingHistory(true)
+            try {
+                const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
+                if (!apiBaseUrl) {
+                    console.error('NEXT_PUBLIC_API_BASE_URL is not defined. Please set it in .env.local')
+                    setHistory([])
+                    return
+                }
+
+                const url = `${apiBaseUrl}/trends/videos/${video.id}/view_history?platform=youtube&limit=30`
+                const res = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    cache: 'no-store',
+                    signal: controller.signal,
+                })
+
+                if (!res.ok) {
+                    const errorText = await res.text().catch(() => '')
+                    console.error('Failed to fetch view history:', {
+                        status: res.status,
+                        statusText: res.statusText,
+                        error: errorText,
+                        url: res.url,
+                    })
+                    setHistory([])
+                    return
+                }
+
+                const data = await res.json()
+                const items: ViewHistoryItem[] = Array.isArray(data?.history) ? data.history : []
+
+                // Ensure sort: old -> new (latest at the end)
+                const sorted = items.slice().sort((a, b) => {
+                    const ta = new Date(a.snapshot_date).getTime()
+                    const tb = new Date(b.snapshot_date).getTime()
+                    return ta - tb
+                })
+                setHistory(sorted)
+            } catch (e: any) {
+                if (e?.name !== 'AbortError') console.error(e)
+                setHistory([])
+            } finally {
+                setIsLoadingHistory(false)
+            }
+        }
+
+        fetchViewHistory()
+        return () => controller.abort()
+    }, [video])
+
+    // Close on ESC
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose()
@@ -100,10 +302,9 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
         return () => window.removeEventListener('keydown', handleEsc)
     }, [onClose])
 
-    // 스크롤 방지
+    // Prevent body scroll when modal open
     useEffect(() => {
         if (!video) return
-
         const originalStyle = window.getComputedStyle(document.body).overflow
         document.body.style.overflow = 'hidden'
         return () => {
@@ -111,22 +312,30 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
         }
     }, [video])
 
+    const viewSeries: ChartPoint[] = useMemo(() => {
+        return history.map((item) => ({
+            time: new Date(item.snapshot_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+            count: item.view_count ?? 0,
+        }))
+    }, [history])
+
+    const likeSeries: ChartPoint[] = useMemo(() => {
+        return history.map((item) => ({
+            time: new Date(item.snapshot_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+            count: item.like_count ?? 0,
+        }))
+    }, [history])
+
     if (!video) return null
 
     return (
-        <div
-            className='fixed inset-0 z-[100] flex items-center justify-center p-4'
-            onClick={onClose}
-        >
-            {/* Backdrop */}
+        <div className='fixed inset-0 z-[100] flex items-center justify-center p-4' onClick={onClose}>
             <div className='absolute inset-0 bg-black/60 backdrop-blur-sm z-[-1]' />
 
-            {/* Modal */}
             <div
                 className='relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto'
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Close button */}
                 <button
                     onClick={onClose}
                     className='absolute top-4 right-4 z-10 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors'
@@ -134,31 +343,24 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
                     <Icon icon='mdi:close' className='text-xl' />
                 </button>
 
-                {/* Thumbnail */}
                 <div className='relative aspect-video'>
-                    <Image
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        fill
-                        className='object-cover rounded-t-2xl'
-                    />
+                    <Image src={video.thumbnailUrl} alt={video.title} fill className='object-cover rounded-t-2xl' />
                     {video.trendingRank && video.trendingRank <= 10 && (
                         <div className='absolute top-4 left-4 bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg'>
                             <Icon icon='mdi:fire' className='text-xl' />
                             <span className='font-bold'>급등 #{video.trendingRank}</span>
                         </div>
                     )}
-                    <div className='absolute bottom-4 right-4 bg-black/80 text-white px-2 py-1 rounded text-sm'>
-                        {video.duration}
-                    </div>
+                    {!!video.duration && (
+                        <div className='absolute bottom-4 right-4 bg-black/80 text-white px-2 py-1 rounded text-sm'>
+                            {video.duration}
+                        </div>
+                    )}
                 </div>
 
-                {/* Content */}
                 <div className='p-6'>
-                    {/* Title */}
                     <h2 className='text-xl font-bold text-gray-900 mb-3'>{video.title}</h2>
 
-                    {/* Channel & Stats */}
                     <div className='flex flex-wrap items-center gap-4 text-gray-600 text-sm mb-4'>
                         <span className='font-medium'>{video.channelName}</span>
                         <span className='text-gray-300'>|</span>
@@ -175,7 +377,6 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
                         <span className='text-gray-400'>{timeAgo(video.publishedAt)}</span>
                     </div>
 
-                    {/* Trending reason */}
                     {video.trendingReason && (
                         <div className='bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-4 mb-4'>
                             <div className='flex items-start gap-3'>
@@ -190,17 +391,11 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
                         </div>
                     )}
 
-                    {/* Charts */}
                     <div className='grid grid-cols-2 gap-4 mb-4'>
-                        <SimpleChart data={dummyViewHistory} label='조회수' color='bg-blue-500' />
-                        <SimpleChart
-                            data={dummyViewHistory.map(d => ({ ...d, count: Math.floor(d.count * 0.068) }))}
-                            label='좋아요'
-                            color='bg-pink-500'
-                        />
+                        <DeltaBarChart data={viewSeries} label='조회수' colorClass='bg-blue-500' isLoading={isLoadingHistory} />
+                        <DeltaBarChart data={likeSeries} label='좋아요' colorClass='bg-pink-500' isLoading={isLoadingHistory} />
                     </div>
 
-                    {/* Actions */}
                     <div className='flex gap-3'>
                         <a
                             href={`https://youtube.com/watch?v=${video.id}`}
@@ -224,3 +419,5 @@ export default function VideoDetailModal({ video, onClose }: VideoDetailModalPro
         </div>
     )
 }
+
+

@@ -137,6 +137,11 @@ export default function VideoCard({ video, onVideoClick }: VideoCardProps) {
                             <div className='flex items-center gap-1 text-gray-600'>
                                 <Icon icon='mdi:thumb-up' className='text-base' />
                                 <span>{formatNumber(video.likeCount)}</span>
+                                {video.likeCountChange !== 0 && (
+                                    <span className='text-green-500 text-xs'>
+                                        {formatChange(video.likeCountChange)}
+                                    </span>
+                                )}
                             </div>
                         </div>
                         {/* Time ago */}
