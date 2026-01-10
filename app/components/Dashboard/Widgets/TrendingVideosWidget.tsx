@@ -78,7 +78,10 @@ const TrendingVideosWidget = ({ onVideoClick }: TrendingVideosWidgetProps) => {
                     );
 
                     if (!response.ok) {
-                        throw new Error('카테고리 영상을 불러오지 못했습니다.');
+                        // throw new Error('카테고리 영상을 불러오지 못했습니다.');
+                        setError('카테고리 영상을 불러오지 못했습니다.');
+                        setVideos([]);
+                        return;
                     }
 
                     const data = await response.json();
@@ -107,6 +110,7 @@ const TrendingVideosWidget = ({ onVideoClick }: TrendingVideosWidgetProps) => {
             } catch (err) {
                 console.error('급등 영상 로딩 실패:', err);
                 setError(err instanceof Error ? err.message : '급등 영상을 불러오지 못했습니다.');
+                setVideos([]); // 오류 발생 시 비디오 목록을 비웁니다.
             } finally {
                 setLoading(false);
             }

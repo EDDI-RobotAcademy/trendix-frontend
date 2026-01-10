@@ -7,5 +7,9 @@ export const metadata: Metadata = {
 }
 
 export default function ComparePage() {
-    return <VideoCompareClient />
+    return (
+        <div className="pt-20">
+            <VideoCompareClient />
+        </div>
+    )
 }

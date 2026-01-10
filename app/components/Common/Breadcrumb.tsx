@@ -18,23 +18,6 @@ const Breadcrumb: React.FC<BreadcrumbProps> = ({
               <p className="text-black dark:text-black-6 mb-5 text-base">
                 {pageDescription}
               </p>
-
-              <ul className="flex items-center justify-center gap-[10px]">
-                <li>
-                  <Link
-                    href="/"
-                    className="text-black flex items-center gap-[10px] text-base font-medium dark:text-white dark:text-opacity-50"
-                  >
-                    Home
-                  </Link>
-                </li>
-                <li>
-                  <p className="text-body-color flex items-center gap-[10px] text-base font-medium">
-                    <span className="text-body-color dark:text-white dark:text-opacity-50"> / </span>
-                    {pageName}
-                  </p>
-                </li>
-              </ul>
             </div>
           </div>
         </div>
