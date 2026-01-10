@@ -7,5 +7,9 @@ export const metadata: Metadata = {
 }
 
 export default function ChannelPage() {
-    return <ChannelAnalysisClient />
+    return (
+        <div className="pt-20">
+            <ChannelAnalysisClient />
+        </div>
+    )
 }

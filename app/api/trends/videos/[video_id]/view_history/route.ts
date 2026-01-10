@@ -24,9 +24,9 @@ function getPool() {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { video_id: string } }
+  { params }: { params: Promise<{ video_id: string }> }
 ) {
-  const { video_id } = params
+  const { video_id } = await params
   const url = new URL(request.url)
   const searchParams = url.searchParams
 

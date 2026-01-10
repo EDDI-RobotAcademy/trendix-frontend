@@ -9,10 +9,17 @@ export const categoryList = async (category: string, count: number) => {
             cache: 'no-store',
             method: 'GET',
         });
+
+        // 404 응답 처리 (해당 카테고리에 추천 콘텐츠가 없는 경우)
+        if (!res.ok) {
+            //console.log(`카테고리 "${category}" 추천 콘텐츠 없음 (status: ${res.status})`);
+            return { items: [] };
+        }
+
         const data = await res.json();
         return data;
     } catch (error) {
         console.log(error);
-        return [];
+        return { items: [] };
     }
 }

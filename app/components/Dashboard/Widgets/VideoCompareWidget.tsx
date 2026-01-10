@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { Icon } from '@iconify/react';
+import { extractVideoId, ingestAndGetAnalysis } from '@/app/lib/api/videos';
+import type { VideoAnalysis } from '@/app/lib/api/types';
 
 // --- VideoCompareClient.tsx에서 가져온 로직과 타입 ---
 interface CompareVideo {
@@ -18,18 +20,34 @@ interface CompareVideo {
     tags: string[];
 }
 
-const getDummyVideo = (id: string, isFirst: boolean): CompareVideo => ({
-    id,
-    title: isFirst ? '[더미 A] 오늘 발표된 새로운 정책' : '[더미 B] 정책 분석 및 영향',
-    channelName: isFirst ? '뉴스채널 A' : '경제분석TV',
-    thumbnailUrl: `https://picsum.photos/seed/${id}/320/180`,
-    viewCount: isFirst ? 1250000 : 890000,
-    likeCount: isFirst ? 85000 : 62000,
-    commentCount: isFirst ? 3200 : 2100,
-    viewGrowthRate: isFirst ? 450 : 280,
-    likeRatio: isFirst ? 6.8 : 7.0,
-    tags: isFirst ? ['뉴스', '속보', '정책'] : ['경제', '분석', '정책'],
-});
+// VideoAnalysis를 CompareVideo로 변환
+function videoAnalysisToCompareVideo(analysis: VideoAnalysis): CompareVideo {
+    const video = analysis.video;
+
+    // 좋아요 비율 계산 (좋아요 / 조회수 * 100)
+    const likeRatio = video.view_count > 0
+        ? (video.like_count / video.view_count) * 100
+        : 0;
+
+    // 키워드를 태그로 변환 (상위 5개)
+    const tags = analysis.keywords
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 5)
+        .map(k => k.keyword);
+
+    return {
+        id: video.video_id,
+        title: video.title,
+        channelName: video.channel_id, // 채널 ID 사용
+        thumbnailUrl: `https://i.ytimg.com/vi/${video.video_id}/hqdefault.jpg`,
+        viewCount: video.view_count,
+        likeCount: video.like_count,
+        commentCount: video.comment_count,
+        viewGrowthRate: 0, // TODO: 히스토리 데이터에서 계산 필요
+        likeRatio,
+        tags,
+    };
+}
 
 function formatNumber(num: number): string {
     if (num >= 10000) return (num / 10000).toFixed(1) + '만';
@@ -50,9 +68,10 @@ interface CompactVideoInputProps {
     onUrlChange: (url: string) => void;
     onAnalyze: () => void;
     loading: boolean;
+    error?: string | null;
 }
 
-function CompactVideoInput({ label, videoUrl, onUrlChange, onAnalyze, loading }: CompactVideoInputProps) {
+function CompactVideoInput({ label, videoUrl, onUrlChange, onAnalyze, loading, error }: CompactVideoInputProps) {
     return (
         <div>
             <label className='block text-xs font-medium text-gray-600 mb-1'>{label}</label>
@@ -61,17 +80,22 @@ function CompactVideoInput({ label, videoUrl, onUrlChange, onAnalyze, loading }:
                     type='text'
                     value={videoUrl}
                     onChange={(e) => onUrlChange(e.target.value)}
-                    placeholder='영상 URL'
-                    className='flex-1 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-primary focus:border-transparent outline-none'
+                    placeholder='영상 URL 또는 ID 입력'
+                    className={`flex-1 px-2 py-1.5 border rounded-md text-sm focus:ring-1 focus:ring-primary focus:border-transparent outline-none ${
+                        error ? 'border-red-500' : 'border-gray-300'
+                    }`}
                 />
                 <button
                     onClick={onAnalyze}
                     disabled={loading || !videoUrl.trim()}
-                    className='px-3 py-1.5 bg-primary text-white rounded-md text-sm hover:bg-primary/90 disabled:bg-gray-300'
+                    className='px-3 py-1.5 bg-primary text-white rounded-md text-sm hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed'
                 >
-                    {loading ? '...' : '분석'}
+                    {loading ? <Icon icon="mdi:loading" className="animate-spin" /> : '분석'}
                 </button>
             </div>
+            {error && (
+                <p className="mt-1 text-xs text-red-600">{error}</p>
+            )}
         </div>
     );
 }
@@ -83,21 +107,49 @@ const VideoCompareWidget = () => {
     const [videoB, setVideoB] = useState<CompareVideo | null>(null);
     const [loadingA, setLoadingA] = useState(false);
     const [loadingB, setLoadingB] = useState(false);
+    const [errorA, setErrorA] = useState<string | null>(null);
+    const [errorB, setErrorB] = useState<string | null>(null);
 
-    const analyzeVideoA = () => {
+    const analyzeVideoA = async () => {
         setLoadingA(true);
-        setTimeout(() => {
-            setVideoA(getDummyVideo(videoUrlA || 'videoA', true));
+        setErrorA(null);
+
+        try {
+            const videoId = extractVideoId(videoUrlA);
+            if (!videoId) {
+                throw new Error('유효하지 않은 YouTube URL입니다.');
+            }
+
+            const analysis = await ingestAndGetAnalysis(videoId);
+            setVideoA(videoAnalysisToCompareVideo(analysis));
+        } catch (error) {
+            console.error('영상 A 분석 실패:', error);
+            setErrorA(error instanceof Error ? error.message : '영상 분석에 실패했습니다.');
+            setVideoA(null);
+        } finally {
             setLoadingA(false);
-        }, 800);
+        }
     };
 
-    const analyzeVideoB = () => {
+    const analyzeVideoB = async () => {
         setLoadingB(true);
-        setTimeout(() => {
-            setVideoB(getDummyVideo(videoUrlB || 'videoB', false));
+        setErrorB(null);
+
+        try {
+            const videoId = extractVideoId(videoUrlB);
+            if (!videoId) {
+                throw new Error('유효하지 않은 YouTube URL입니다.');
+            }
+
+            const analysis = await ingestAndGetAnalysis(videoId);
+            setVideoB(videoAnalysisToCompareVideo(analysis));
+        } catch (error) {
+            console.error('영상 B 분석 실패:', error);
+            setErrorB(error instanceof Error ? error.message : '영상 분석에 실패했습니다.');
+            setVideoB(null);
+        } finally {
             setLoadingB(false);
-        }, 800);
+        }
     };
     
     return (
@@ -110,6 +162,7 @@ const VideoCompareWidget = () => {
                     onUrlChange={setVideoUrlA}
                     onAnalyze={analyzeVideoA}
                     loading={loadingA}
+                    error={errorA}
                 />
                 <CompactVideoInput
                     label='영상 B'
@@ -117,6 +170,7 @@ const VideoCompareWidget = () => {
                     onUrlChange={setVideoUrlB}
                     onAnalyze={analyzeVideoB}
                     loading={loadingB}
+                    error={errorB}
                 />
             </div>
 

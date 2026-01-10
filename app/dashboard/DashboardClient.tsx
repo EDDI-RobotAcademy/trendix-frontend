@@ -9,6 +9,8 @@ import ChannelAnalysisWidget from '@/app/components/Dashboard/Widgets/ChannelAna
 import VideoCompareWidget from '@/app/components/Dashboard/Widgets/VideoCompareWidget';
 import VideoDetailModal from '@/app/components/Home/TrendingVideos/VideoDetailModal';
 import { Video } from '@/app/components/Home/TrendingVideos/VideoCard';
+import { useCurrentUser } from '@/app/hooks/useCurrentUser';
+import { useDashboardLayout } from '@/app/hooks/useDashboardLayout';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -44,10 +46,7 @@ const WIDGET_TYPES: WidgetTypeOption[] = [
     { type: 'hotKeywords', name: '지금 뜨는 키워드', defaultW: 6, defaultH: 2 },
 ];
 
-const getInitialWidgets = (): Widget[] => [
-    { i: '1', type: 'trendingVideos', name: '급등 영상' },
-    { i: '2', type: 'channelAnalysis', name: '내 채널 분석' },
-];
+const getInitialWidgets = (): Widget[] => [];
 
 const createEmptyLayouts = (): Layouts => ({
     lg: [],
@@ -79,54 +78,43 @@ const generateLayouts = (initialWidgets: Widget[]): Layouts => {
 const DashboardClient = () => {
     const [isEditMode, setIsEditMode] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [widgets, setWidgets] = useState<Widget[]>([]);
-    const [layouts, setLayouts] = useState<Layouts>(() => createEmptyLayouts());
     const [detailVideo, setDetailVideo] = useState<Video | null>(null); // 비디오 상세 모달 상태
 
-    useEffect(() => {
-        let savedWidgets: Widget[] | null = null;
-        let savedLayouts: Layouts | null = null;
-        try {
-            savedWidgets = JSON.parse(localStorage.getItem('dashboard_widgets_v2') || 'null');
-            savedLayouts = JSON.parse(localStorage.getItem('dashboard_layouts_v2') || 'null');
-        } catch (error) { console.error("대시보드 데이터를 불러오는 중 오류 발생:", error); }
+    // Application Layer: 사용자 정보 및 레이아웃 관리
+    const { user, loading: userLoading } = useCurrentUser();
+    const accountId = user?.account?.id || null;
+    const {
+        widgets,
+        layouts,
+        loading: layoutLoading,
+        saving,
+        setWidgets,
+        setLayouts,
+        saveLayout,
+    } = useDashboardLayout(accountId);
 
-        if (savedWidgets && savedLayouts && savedWidgets.length > 0) {
-            setWidgets(savedWidgets);
-            setLayouts(savedLayouts);
-        } else {
-            const initialWidgets = getInitialWidgets();
-            setWidgets(initialWidgets);
-            setLayouts(generateLayouts(initialWidgets));
-        }
-    }, []);
+    // 초기 위젯은 빈 배열로 시작 (사용자가 직접 추가)
 
     const handleLayoutChange = (layout: LayoutItem[], allLayouts: Layouts) => { 
         if (isEditMode) setLayouts(allLayouts); 
     };
 
-    const handleSave = () => {
-        localStorage.setItem('dashboard_widgets_v2', JSON.stringify(widgets));
-        localStorage.setItem('dashboard_layouts_v2', JSON.stringify(layouts));
-        setIsEditMode(false);
-    };
-    
-    const handleCancel = () => {
-        let savedWidgets: Widget[] | null = null;
-        let savedLayouts: Layouts | null = null;
+    const handleSave = async () => {
         try {
-            savedWidgets = JSON.parse(localStorage.getItem('dashboard_widgets_v2') || 'null');
-            savedLayouts = JSON.parse(localStorage.getItem('dashboard_layouts_v2') || 'null');
-        } catch (error) { console.error("대시보드 데이터를 불러오는 중 오류 발생:", error); }
-        if (savedWidgets && savedLayouts && savedWidgets.length > 0) {
-            setWidgets(savedWidgets); 
-            setLayouts(savedLayouts);
-        } else {
-            const initialWidgets = getInitialWidgets();
-            setWidgets(initialWidgets); 
-            setLayouts(generateLayouts(initialWidgets));
+            await saveLayout(widgets, layouts);
+            setIsEditMode(false);
+        } catch (error) {
+            console.error('레이아웃 저장 실패:', error);
+            alert('레이아웃 저장에 실패했습니다. 다시 시도해주세요.');
         }
+    };
+
+    const handleCancel = () => {
+        // 수정 모드 취소 시 원래 레이아웃으로 복구
+        // saveLayout이 이미 최신 상태를 유지하고 있으므로
+        // 단순히 편집 모드만 해제
         setIsEditMode(false);
+        // 필요하다면 window.location.reload()로 전체 리로드
     };
 
     const handleAddItem = (widgetType: WidgetTypeOption) => {
@@ -135,7 +123,7 @@ const DashboardClient = () => {
         const updatedWidgets = [...widgets, newWidget];
         setWidgets(updatedWidgets);
 
-        const newLayouts: Layouts = { ...layouts };
+        const newLayouts = { ...layouts };
         for (const breakpoint of Object.keys(breakpoints) as Breakpoint[]) {
             const currentLayout = newLayouts[breakpoint] || [];
             const nextY = currentLayout.length ? Math.max(...currentLayout.map(item => item.y + item.h)) : 0;
@@ -150,7 +138,7 @@ const DashboardClient = () => {
 
     const handleRemoveItem = (itemId: string) => {
         setWidgets(widgets.filter(w => w.i !== itemId));
-        const newLayouts: Layouts = { ...layouts };
+        const newLayouts = { ...layouts };
         for (const breakpoint of Object.keys(newLayouts) as Breakpoint[]) {
             newLayouts[breakpoint] = newLayouts[breakpoint].filter(l => l.i !== itemId);
         }
@@ -180,6 +168,18 @@ const DashboardClient = () => {
 
     const widgetStyle = 'bg-white dark:bg-gray-800 rounded-lg shadow-md flex items-center justify-center relative overflow-hidden p-4';
 
+    // 로딩 상태 표시
+    if (userLoading || layoutLoading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-gray-600">대시보드를 불러오는 중...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div>
             <VideoDetailModal video={detailVideo} onClose={handleCloseModal} />
@@ -190,7 +190,13 @@ const DashboardClient = () => {
                     <button onClick={() => setIsEditMode(true)} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">수정하기</button>
                 ) : (
                     <>
-                        <button onClick={handleSave} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">저장</button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        >
+                            {saving ? '저장 중...' : '저장'}
+                        </button>
                         <button onClick={handleCancel} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">취소</button>
                         <button onClick={() => setIsAddModalOpen(true)} className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600">위젯 추가</button>
                     </>

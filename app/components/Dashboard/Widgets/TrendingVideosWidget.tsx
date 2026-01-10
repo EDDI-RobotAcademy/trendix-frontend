@@ -1,34 +1,180 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import VideoCard, { Video } from '@/app/components/Home/TrendingVideos/VideoCard';
+import CategoryTabs, { youtubeCategories, Category } from '@/app/components/Home/TrendingVideos/CategoryTabs';
+import { fetchSurgeVideos } from '@/app/lib/api/trends';
+import type { SurgeVideo } from '@/app/lib/api/types';
 
-const trendingVideosData: Video[] = [
-    { id: 'g1', title: '[속보] 오늘 발표된 새로운 정책, 전문가들의 반응은?', channelName: '뉴스채널 A', channelId: 'ch1', thumbnailUrl: 'https://picsum.photos/seed/g1/400/225', viewCount: 1250000, viewCountChange: 450000, likeCount: 85000, likeCountChange: 12000, publishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), duration: '12:34', categoryId: '25', isShort: false, trendingRank: 1, trendingReason: '3시간 만에 조회수 45만 급등' },
-    { id: 'g2', title: '이 게임 실화냐? 출시 3일 만에 스팀 1위', channelName: '게임채널', channelId: 'ch2', thumbnailUrl: 'https://picsum.photos/seed/g2/400/225', viewCount: 890000, viewCountChange: 320000, likeCount: 67000, likeCountChange: 8500, publishedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), duration: '18:22', categoryId: '20', isShort: false, trendingRank: 2, trendingReason: '게임 카테고리 1위' },
-    { id: 'g3', title: '단 15초 만에 100만뷰 달성한 비결 #shorts', channelName: '쇼츠마스터', channelId: 'ch3', thumbnailUrl: 'https://picsum.photos/seed/g3/400/225', viewCount: 2100000, viewCountChange: 1800000, likeCount: 180000, likeCountChange: 45000, publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), duration: '0:15', categoryId: '24', isShort: true, trendingRank: 3, trendingReason: 'Shorts 좋아요 급증' },
-    { id: 'g4', title: '아이유 신곡 첫 공개 무대! 역대급 라이브', channelName: '음악의 신', channelId: 'ch4', thumbnailUrl: 'https://picsum.photos/seed/g4/400/225', viewCount: 3500000, viewCountChange: 890000, likeCount: 290000, likeCountChange: 67000, publishedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), duration: '4:32', categoryId: '10', isShort: false, trendingRank: 4, trendingReason: '음악 카테고리 최다 조회' },
-    { id: 'g5', title: '프리미어리그 | 손흥민 결승골 폭발', channelName: '스포츠 투데이', channelId: 'ch5', thumbnailUrl: 'https://picsum.photos/seed/g5/400/225', viewCount: 780000, viewCountChange: 280000, likeCount: 52000, likeCountChange: 9800, publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), duration: '8:45', categoryId: '17', isShort: false, trendingRank: 5, trendingReason: '스포츠 카테고리 급상승' },
-    { id: 'g6', title: '2024 헤어 트렌드 총정리', channelName: '스타일리스트K', channelId: 'ch6', thumbnailUrl: 'https://picsum.photos/seed/g6/400/225', viewCount: 567000, viewCountChange: 234000, likeCount: 41000, likeCountChange: 7800, publishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), duration: '11:55', categoryId: '26', isShort: false, trendingRank: 6, trendingReason: '노하우 카테고리 좋아요 급증' },
-    { id: 'g7', title: '최신 AI 기술로 만든 놀라운 결과물', channelName: '테크리뷰', channelId: 'ch7', thumbnailUrl: 'https://picsum.photos/seed/g7/400/225', viewCount: 456000, viewCountChange: 156000, likeCount: 34000, likeCountChange: 5600, publishedAt: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(), duration: '15:20', categoryId: '28', isShort: false, trendingRank: 7, trendingReason: '과학기술 카테고리 급등' },
-    { id: 'g8', title: '오늘의 주요 뉴스 브리핑', channelName: '뉴스채널 B', channelId: 'ch8', thumbnailUrl: 'https://picsum.photos/seed/g8/400/225', viewCount: 340000, viewCountChange: 120000, likeCount: 28000, likeCountChange: 4200, publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), duration: '9:20', categoryId: '25', isShort: false, trendingRank: 8, trendingReason: '뉴스 카테고리 상승' },
-    { id: 'g9', title: '10분 순삭! 초간단 집밥 레시피', channelName: '집밥의 여왕', channelId: 'ch9', thumbnailUrl: 'https://picsum.photos/seed/g9/400/225', viewCount: 620000, viewCountChange: 180000, likeCount: 45000, likeCountChange: 9000, publishedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), duration: '10:15', categoryId: '22', isShort: false, trendingRank: 9, trendingReason: '요리 카테고리 인기' },
-    { id: 'g10', title: '반려견과 함께하는 여행 브이로그', channelName: '멍냥TV', channelId: 'ch10', thumbnailUrl: 'https://picsum.photos/seed/g10/400/225', viewCount: 410000, viewCountChange: 110000, likeCount: 32000, likeCountChange: 6500, publishedAt: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString(), duration: '22:40', categoryId: '15', isShort: false, trendingRank: 10, trendingReason: '동물 카테고리 급상승' },
-];
+// SurgeVideo를 Video 타입으로 변환
+function surgeVideoToVideo(surgeVideo: SurgeVideo): Video {
+    // 급등 이유 생성
+    let trendingReason = '';
+    if (surgeVideo.surge_score > 80) {
+        trendingReason = `급등 점수 ${surgeVideo.surge_score.toFixed(1)} - 초고속 성장`;
+    } else if (surgeVideo.delta_views_window > 100000) {
+        trendingReason = `조회수 ${(surgeVideo.delta_views_window / 10000).toFixed(1)}만 급등`;
+    } else if (surgeVideo.growth_rate_window > 1.0) {
+        trendingReason = `증가율 ${(surgeVideo.growth_rate_window * 100).toFixed(0)}% 급상승`;
+    } else {
+        trendingReason = '트렌딩 중';
+    }
+
+    return {
+        id: surgeVideo.video_id,
+        title: surgeVideo.title,
+        channelName: surgeVideo.channel_username?.replace('@', '') || surgeVideo.channel_id,
+        channelId: surgeVideo.channel_id,
+        thumbnailUrl: surgeVideo.thumbnail_url || 'https://picsum.photos/400/225',
+        viewCount: surgeVideo.view_count,
+        viewCountChange: surgeVideo.delta_views_window,
+        likeCount: surgeVideo.like_count,
+        likeCountChange: surgeVideo.like_count - surgeVideo.like_count_prev,
+        publishedAt: surgeVideo.published_at || new Date().toISOString(),
+        duration: surgeVideo.duration || '0:00',
+        categoryId: surgeVideo.category_id?.toString() || '0',
+        isShort: surgeVideo.is_shorts || false,
+        trendingRank: surgeVideo.trending_rank,
+        trendingReason,
+    };
+}
 
 interface TrendingVideosWidgetProps {
     onVideoClick: (video: Video) => void;
 }
 
 const TrendingVideosWidget = ({ onVideoClick }: TrendingVideosWidgetProps) => {
+    const [videos, setVideos] = useState<Video[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+    useEffect(() => {
+        async function loadVideos() {
+            try {
+                setLoading(true);
+                setError(null);
+
+                if (selectedCategory === 'all') {
+                    // 전체 급등 영상
+                    const surgeVideos = await fetchSurgeVideos({
+                        platform: 'youtube',
+                        limit: 10,
+                        days: 14,
+                        velocity_days: 1,
+                    });
+
+                    const convertedVideos = surgeVideos.map(surgeVideoToVideo);
+                    setVideos(convertedVideos);
+                } else {
+                    // 카테고리별 추천 영상
+                    const response = await fetch(
+                        `${process.env.NEXT_PUBLIC_API_BASE_URL}/trends/menu?category_id=${encodeURIComponent(selectedCategory)}&limit=10&days=14&platform=youtube`,
+                        {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' },
+                            cache: 'no-store',
+                        }
+                    );
+
+                    if (!response.ok) {
+                        // throw new Error('카테고리 영상을 불러오지 못했습니다.');
+                        setError('카테고리 영상을 불러오지 못했습니다.');
+                        setVideos([]);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    const items: any[] = data.items ?? [];
+
+                    const convertedVideos: Video[] = items.map((item, index) => ({
+                        id: item.video_id,
+                        title: item.title,
+                        channelName: item.channel_username?.replace('@', '') || item.channel_id,
+                        channelId: item.channel_id,
+                        thumbnailUrl: item.thumbnail_url,
+                        viewCount: item.view_count,
+                        viewCountChange: 0,
+                        likeCount: item.like_count ?? 0,
+                        likeCountChange: 0,
+                        publishedAt: item.published_at,
+                        duration: '',
+                        categoryId: String(item.category_id ?? item.category ?? selectedCategory),
+                        isShort: item.is_shorts || false,
+                        trendingRank: index + 1,
+                        trendingReason: `${item.category ?? selectedCategory} 카테고리 추천`,
+                    }));
+
+                    setVideos(convertedVideos);
+                }
+            } catch (err) {
+                console.error('급등 영상 로딩 실패:', err);
+                setError(err instanceof Error ? err.message : '급등 영상을 불러오지 못했습니다.');
+                setVideos([]); // 오류 발생 시 비디오 목록을 비웁니다.
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadVideos();
+    }, [selectedCategory]);
+
+    if (loading) {
+        return (
+            <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-gray-600">급등 영상을 불러오는 중...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center p-6">
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                    >
+                        다시 시도
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (videos.length === 0) {
+        return (
+            <div className="w-full h-full flex items-center justify-center">
+                <p className="text-gray-600">급등 영상이 없습니다.</p>
+            </div>
+        );
+    }
+
     return (
-        <div className="w-full h-full overflow-y-auto p-1">
-            <div 
-                className="grid gap-4"
-                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
-            >
-                {trendingVideosData.map(video => (
-                    <VideoCard key={video.id} video={video} onVideoClick={onVideoClick} />
-                ))}
+        <div className="w-full h-full flex flex-col overflow-hidden">
+            {/* 카테고리 탭 */}
+            <div className="px-3 pt-3 pb-2 border-b">
+                <CategoryTabs
+                    categories={youtubeCategories}
+                    selectedCategory={selectedCategory}
+                    onCategoryChange={setSelectedCategory}
+                />
+            </div>
+
+            {/* 영상 그리드 */}
+            <div className="flex-1 overflow-y-auto p-3">
+                <div
+                    className="grid gap-4"
+                    style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}
+                >
+                    {videos.map(video => (
+                        <VideoCard key={video.id} video={video} onVideoClick={onVideoClick} />
+                    ))}
+                </div>
             </div>
         </div>
     );
